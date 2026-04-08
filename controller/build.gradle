@@ -20,5 +20,5 @@ dependencies {
     implementation(project(':distribution:runtime-il2cpp'))
     implementation(project(':distribution:project'))
     implementation project(':distribution:apktool:brut.apktool:apktool-lib')
-    testCompile group: 'junit', name: 'junit', version: '4.12'
+    testImplementation group: 'junit', name: 'junit', version: '4.12'
 }

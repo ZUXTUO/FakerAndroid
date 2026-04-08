@@ -3,6 +3,16 @@ version '1.0-SNAPSHOT'
 
 allprojects {
     apply plugin: 'java'
+    sourceCompatibility = 1.8
+    targetCompatibility = 1.8
+    tasks.withType(JavaCompile) {
+        options.encoding = "UTF-8"
+    }
+    tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+        kotlinOptions {
+            jvmTarget = "1.8"
+        }
+    }
     dependencies {
         implementation 'org.slf4j:slf4j-api:1.7.30'
         compileOnly 'org.jetbrains:annotations:20.1.0'
@@ -19,20 +29,19 @@ allprojects {
     repositories {
         mavenLocal()
         mavenCentral()
-        jcenter()
         google()
     }
 }
 buildscript {
-    ext.kotlin_version = '1.4.32'
+    ext.kotlin_version = '1.9.22'
     repositories {
-        jcenter()
-    }
-    tasks.withType(JavaCompile) {
-        options.encoding = "UTF-8"
+        mavenCentral()
+        maven { url "https://www.jetbrains.com/intellij-repository/releases" }
+        gradlePluginPortal()
+        google()
     }
     dependencies {
-        classpath 'com.github.jengelman.gradle.plugins:shadow:6.0.0'
+        classpath 'com.github.johnrengelman:shadow:8.1.1'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
     }
 }
@@ -53,3 +62,4 @@ compileTestKotlin {
         jvmTarget = "1.8"
     }
 }
+

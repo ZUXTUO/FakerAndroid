@@ -60,8 +60,9 @@ public final class ResTypeSpec {
     }
 
     public boolean isString() {
-        return mName.equalsIgnoreCase("string");
+        return "string".equalsIgnoreCase(mName);
     }
+
 
     public Set<ResResSpec> listResSpecs() {
         return new LinkedHashSet<ResResSpec>(mResSpecs.values());

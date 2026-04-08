@@ -74,14 +74,20 @@ public class ARSCDecoder {
         int packageCount = mIn.readInt();
 
         mTableStrings = StringBlock.read(mIn);
-        ResPackage[] packages = new ResPackage[packageCount];
 
-        nextChunk();
+
+        List<ResPackage> packagesList = new ArrayList<ResPackage>();
         for (int i = 0; i < packageCount; i++) {
+            while (mHeader.type != Header.TYPE_PACKAGE && mHeader.type != Header.TYPE_NONE) {
+                nextChunk();
+            }
+            if (mHeader.type == Header.TYPE_NONE) {
+                break;
+            }
             mTypeIdOffset = 0;
-            packages[i] = readTablePackage();
+            packagesList.add(readTablePackage());
         }
-        return packages;
+        return packagesList.toArray(new ResPackage[0]);
     }
 
     private ResPackage readTablePackage() throws IOException, AndrolibException {
@@ -123,13 +129,19 @@ public class ARSCDecoder {
         mPkg = new ResPackage(mResTable, id, name);
 
         nextChunk();
-        while (mHeader.type == Header.TYPE_LIBRARY) {
-            readLibraryType();
+        while (mHeader.type != Header.TYPE_PACKAGE && mHeader.type != Header.TYPE_NONE) {
+            if (mHeader.type == Header.TYPE_LIBRARY) {
+                readLibraryType();
+            } else if (mHeader.type == Header.TYPE_SPEC_TYPE) {
+                readTableTypeSpec();
+            } else if (mHeader.type == Header.TYPE_TYPE) {
+                readTableType();
+                nextChunk();
+            } else {
+                nextChunk();
+            }
         }
 
-        while (mHeader.type == Header.TYPE_SPEC_TYPE) {
-            readTableTypeSpec();
-        }
 
         return mPkg;
     }
@@ -214,6 +226,13 @@ public class ARSCDecoder {
         /* reserved */mIn.skipBytes(2);
         int entryCount = mIn.readInt();
         int entriesStart = mIn.readInt();
+
+        if (mTypeSpec == null) {
+            LOGGER.warning(String.format("TYPE chunk without preceding SPEC_TYPE found: typeId=%d", typeId + mTypeIdOffset));
+            // Attempt to recover by creating a dummy TypeSpec if possible, or just skip gracefully
+            // but for now we'll let it be null and check later to avoid NPE.
+        }
+
         mMissingResSpecs = new boolean[entryCount];
         Arrays.fill(mMissingResSpecs, true);
 
@@ -228,12 +247,13 @@ public class ARSCDecoder {
         }
 
         if (typeFlags == 1) {
-            LOGGER.info("Sparse type flags detected: " + mTypeSpec.getName());
+            LOGGER.info("Sparse type flags detected: " + (mTypeSpec == null ? "null" : mTypeSpec.getName()));
         }
+
         int[] entryOffsets = mIn.readIntArray(entryCount);
 
         if (flags.isInvalid) {
-            String resName = mTypeSpec.getName() + flags.getQualifiers();
+            String resName = (mTypeSpec == null ? "null" : mTypeSpec.getName()) + flags.getQualifiers();
             if (mKeepBroken) {
                 LOGGER.warning("Invalid config flags detected: " + resName);
             } else {
@@ -257,7 +277,9 @@ public class ARSCDecoder {
                 mMissingResSpecs[i] = false;
                 mResId = (mResId & 0xffff0000) | i;
                 EntryData entryData = offsetsToEntryData.get(entryOffsets[i]);
-                readEntry(entryData);
+                if (mTypeSpec != null) {
+                    readEntry(entryData);
+                }
             }
         }
 
@@ -285,7 +307,7 @@ public class ARSCDecoder {
         int specNamesId = entryData.mSpecNamesId;
         ResValue value = entryData.mValue;
 
-        if (mTypeSpec.isString() && value instanceof ResFileValue) {
+        if (mTypeSpec != null && "string".equalsIgnoreCase(mTypeSpec.getName()) && value instanceof ResFileValue) {
             value = new ResStringValue(value.toString(), ((ResFileValue) value).getRawIntValue());
         }
         if (mType == null) {
@@ -500,6 +522,10 @@ public class ARSCDecoder {
     private void addMissingResSpecs() throws AndrolibException {
         int resId = mResId & 0xffff0000;
 
+        if (mTypeSpec == null) {
+            return;
+        }
+
         for (int i = 0; i < mMissingResSpecs.length; i++) {
             if (!mMissingResSpecs[i]) {
                 continue;
@@ -600,7 +626,8 @@ public class ARSCDecoder {
         }
 
         public final static short TYPE_NONE = -1, TYPE_TABLE = 0x0002,
-                TYPE_PACKAGE = 0x0200, TYPE_TYPE = 0x0201, TYPE_SPEC_TYPE = 0x0202, TYPE_LIBRARY = 0x0203;
+                TYPE_PACKAGE = 0x0200, TYPE_TYPE = 0x0201, TYPE_SPEC_TYPE = 0x0202, TYPE_LIBRARY = 0x0203,
+                TYPE_OVERLAYABLE = 0x0204, TYPE_OVERLAYABLE_POLICY = 0x0205, TYPE_STAGED_ALIAS = 0x0206;
     }
 
     public static class FlagsOffset {
